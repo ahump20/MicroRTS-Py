@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BlazeCraft Enhanced | Real-Time AI Agent Command Center</title>
+  <meta name="description" content="Enhanced BlazeCraft with MicroRTS-inspired grid warfare, physics, unit management, and real-time strategy mechanics for AI agent orchestration." />
+  <meta name="theme-color" content="#0b0b0f" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=MedievalSharp&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- SVG Film Grain Filter -->
+  <svg class="bsi-grain-defs" aria-hidden="true" style="position:absolute;width:0;height:0;pointer-events:none;">
+    <defs>
+      <filter id="bsi-grain-filter" x="0%" y="0%" width="100%" height="100%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.75" numOctaves="4" stitchTiles="stitch" result="noise"/>
+        <feColorMatrix type="saturate" values="0" result="mono"/>
+        <feBlend in="SourceGraphic" in2="mono" mode="multiply"/>
+      </filter>
+    </defs>
+  </svg>
+  <div id="bsi-grain-overlay" class="bsi-grain-overlay" aria-hidden="true"></div>
+
+  <!-- Particle System Container -->
+  <div id="wc3-wisps" class="wc3-wisps-container" aria-hidden="true"></div>
+
+  <div id="app" aria-label="BlazeCraft Enhanced">
+
+    <!-- ============ WELCOME OVERLAY ============ -->
+    <div id="welcomeOverlay" class="welcome-overlay" role="dialog" aria-labelledby="welcomeTitle" aria-modal="true">
+      <div class="welcome-card">
+        <div class="welcome-header">
+          <div class="welcome-logo-ring">
+            <canvas id="welcomeLogoCanvas" width="80" height="80"></canvas>
+          </div>
+          <h1 id="welcomeTitle" class="welcome-title">BlazeCraft <span class="enhanced-badge">Enhanced</span></h1>
+          <p class="welcome-tagline">Real-Time AI Agent Command Center</p>
+        </div>
+        <div class="welcome-content">
+          <p class="welcome-desc">MicroRTS-powered command interface. Grid-based warfare meets AI orchestration. Deploy workers, manage resources, and dominate your codebase.</p>
+          <div class="welcome-features">
+            <div class="welcome-feature"><span class="welcome-feature-icon" aria-hidden="true">&#9878;</span><span>Grid-based tactical map with fog of war</span></div>
+            <div class="welcome-feature"><span class="welcome-feature-icon" aria-hidden="true">&#9889;</span><span>Physics-driven particle effects &amp; animations</span></div>
+            <div class="welcome-feature"><span class="welcome-feature-icon" aria-hidden="true">&#9876;</span><span>MicroRTS unit types: Worker, Light, Heavy, Ranged</span></div>
+            <div class="welcome-feature"><span class="welcome-feature-icon" aria-hidden="true">&#128200;</span><span>Real-time reward function metrics dashboard</span></div>
+          </div>
+        </div>
+        <div class="welcome-actions">
+          <button id="welcomeDemo" class="btn btn-accent" type="button">Launch Demo</button>
+          <button id="welcomeDismiss" class="btn btn-secondary" type="button">Skip Intro</button>
+        </div>
+        <p class="welcome-hint">Press <kbd>Esc</kbd> to close</p>
+      </div>
+    </div>
+
+    <!-- ============ TOP RESOURCE BAR ============ -->
+    <header id="topbar" class="panel topbar" role="banner">
+      <div class="topbar-left">
+        <div class="brand">
+          <span class="brand-fire" aria-hidden="true"></span>
+          <span class="brand-name">BlazeCraft</span>
+        </div>
+        <div class="resource-bar" role="group" aria-label="Resources">
+          <div class="resource" title="Gold (Tasks Completed)">
+            <span class="res-icon res-gold" aria-hidden="true"></span>
+            <span class="res-label">Tasks:</span>
+            <span id="resCompleted" class="res-val">0</span>
+          </div>
+          <div class="resource" title="Lumber (Files Modified)">
+            <span class="res-icon res-lumber" aria-hidden="true"></span>
+            <span class="res-label">Files:</span>
+            <span id="resFiles" class="res-val">0</span>
+          </div>
+          <div class="resource" title="Supply (Active Workers / Max)">
+            <span class="res-icon res-supply" aria-hidden="true"></span>
+            <span class="res-label">Supply:</span>
+            <span id="resWorkers" class="res-val">0</span><span class="res-max">/12</span>
+          </div>
+          <div class="resource res-danger" title="Failed Tasks">
+            <span class="res-icon res-failed" aria-hidden="true"></span>
+            <span class="res-label">Failed:</span>
+            <span id="resFailed" class="res-val">0</span>
+          </div>
+          <div class="resource" title="Tokens Spent">
+            <span class="res-icon res-tokens" aria-hidden="true"></span>
+            <span class="res-label">Tokens:</span>
+            <span id="resTokens" class="res-val">0</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="topbar-center">
+        <button id="idleAlert" class="idle-alert" type="button" hidden>
+          <span class="idle-pulse"></span>
+          <span class="idle-label">Idle Workers:</span>
+          <span id="idleAlertCount" class="idle-num">0</span>
+        </button>
+        <!-- MicroRTS-inspired game clock -->
+        <div class="game-clock">
+          <span class="clock-label">Cycle:</span>
+          <span id="gameCycle" class="clock-val">0</span>
+          <span class="clock-sep">|</span>
+          <span id="gameTime" class="clock-val">00:00</span>
+        </div>
+      </div>
+
+      <div class="topbar-right">
+        <div class="mode-selector" role="group" aria-label="View mode">
+          <button id="modeRTS" class="mode-btn active" type="button">RTS</button>
+          <button id="modeOps" class="mode-btn" type="button">Ops</button>
+          <button id="modeTech" class="mode-btn" type="button">Tech</button>
+        </div>
+        <button id="toggleFog" class="btn btn-sm" type="button" title="Toggle Fog of War">Fog</button>
+        <button id="toggleLog" class="btn btn-sm" type="button" aria-pressed="false">Log</button>
+        <button id="toggleDemo" class="btn btn-accent btn-sm" type="button" title="Toggle demo mode">Demo</button>
+      </div>
+    </header>
+
+    <!-- ============ MAIN GAME AREA ============ -->
+    <div class="game-area">
+
+      <!-- Left Panel: Tech Tree / Unit Production -->
+      <aside id="techPanel" class="panel tech-panel" aria-label="Tech Tree">
+        <div class="panel-title">Production Queue</div>
+        <div class="tech-tree">
+          <div class="tech-category">
+            <div class="tech-cat-title">Units</div>
+            <button class="tech-btn" data-unit="worker" title="Worker - Gathers resources, builds structures">
+              <span class="unit-icon unit-worker"></span>
+              <span class="tech-name">Worker</span>
+              <span class="tech-cost">50g</span>
+            </button>
+            <button class="tech-btn" data-unit="light" title="Light - Fast scout unit">
+              <span class="unit-icon unit-light"></span>
+              <span class="tech-name">Light</span>
+              <span class="tech-cost">100g</span>
+            </button>
+            <button class="tech-btn" data-unit="heavy" title="Heavy - Powerful melee unit">
+              <span class="unit-icon unit-heavy"></span>
+              <span class="tech-name">Heavy</span>
+              <span class="tech-cost">150g</span>
+            </button>
+            <button class="tech-btn" data-unit="ranged" title="Ranged - Long-range attack unit">
+              <span class="unit-icon unit-ranged"></span>
+              <span class="tech-name">Ranged</span>
+              <span class="tech-cost">120g</span>
+            </button>
+          </div>
+          <div class="tech-category">
+            <div class="tech-cat-title">Buildings</div>
+            <button class="tech-btn" data-unit="base" title="Base - Main production building">
+              <span class="unit-icon unit-base"></span>
+              <span class="tech-name">Base</span>
+              <span class="tech-cost">200g</span>
+            </button>
+            <button class="tech-btn" data-unit="barracks" title="Barracks - Trains combat units">
+              <span class="unit-icon unit-barracks"></span>
+              <span class="tech-name">Barracks</span>
+              <span class="tech-cost">150g</span>
+            </button>
+          </div>
+        </div>
+        <div class="production-queue">
+          <div class="panel-title">Queue</div>
+          <div id="prodQueue" class="prod-queue-list"></div>
+        </div>
+      </aside>
+
+      <!-- Center: Main Map Canvas -->
+      <main id="mapWrap" class="panel map-panel" role="main">
+        <canvas id="mapCanvas" aria-label="Tactical Map" tabindex="0"></canvas>
+        <!-- Floating selection info -->
+        <div id="selectionInfo" class="selection-info" hidden>
+          <span id="selCount">0</span> units selected
+        </div>
+        <div id="mapHud" class="map-hud" aria-hidden="true">
+          <span class="kbd">Drag</span> select
+          <span class="dot">&middot;</span>
+          <span class="kbd">RMB</span> assign
+          <span class="dot">&middot;</span>
+          <span class="kbd">Scroll</span> zoom
+          <span class="dot">&middot;</span>
+          <span class="kbd">MMB</span> pan
+          <span class="dot">&middot;</span>
+          <span class="kbd">F</span> fog
+          <span class="dot">&middot;</span>
+          <span class="kbd">G</span> grid
+        </div>
+      </main>
+
+      <!-- Right: Event Log -->
+      <aside id="logPanel" class="panel log-panel" aria-label="Event Log">
+        <div class="panel-title">
+          <span>Event Log</span>
+          <span id="logStatus" class="tag tag-live">Live</span>
+        </div>
+        <div id="logFeed" class="log-feed" role="log" aria-live="polite"></div>
+        <div class="log-filter">
+          <button class="log-filter-btn active" data-filter="all">All</button>
+          <button class="log-filter-btn" data-filter="combat">Combat</button>
+          <button class="log-filter-btn" data-filter="economy">Econ</button>
+          <button class="log-filter-btn" data-filter="error">Error</button>
+        </div>
+      </aside>
+    </div>
+
+    <!-- ============ BOTTOM HUD ============ -->
+    <section id="bottomHud" class="panel bottom-hud" aria-label="Bottom HUD">
+
+      <!-- Minimap -->
+      <div class="minimap-panel">
+        <div class="minimap-frame">
+          <canvas id="minimapCanvas" width="200" height="160" aria-label="Minimap"></canvas>
+          <div id="minimapViewport" class="minimap-viewport"></div>
+        </div>
+        <div class="minimap-controls">
+          <button class="minimap-btn active" data-view="terrain" title="Terrain view">T</button>
+          <button class="minimap-btn" data-view="units" title="Units view">U</button>
+          <button class="minimap-btn" data-view="heat" title="Activity heatmap">H</button>
+          <button class="minimap-btn" data-view="ping" title="Ping location">!</button>
+        </div>
+      </div>
+
+      <!-- Portrait + Selection Panel -->
+      <div class="portrait-panel">
+        <div class="portrait-frame">
+          <div class="portrait-ring"></div>
+          <div class="portrait-inner">
+            <div id="portraitAvatar" class="portrait-avatar">
+              <canvas id="portraitCanvas" width="64" height="64"></canvas>
+            </div>
+          </div>
+          <div class="portrait-hp-ring">
+            <svg viewBox="0 0 72 72" class="hp-ring-svg">
+              <circle cx="36" cy="36" r="33" class="hp-ring-bg"/>
+              <circle id="hpRing" cx="36" cy="36" r="33" class="hp-ring-fill"/>
+            </svg>
+          </div>
+        </div>
+        <div class="portrait-details">
+          <div id="portraitName" class="portrait-name">Subagent-7</div>
+          <div id="portraitType" class="portrait-type">Worker</div>
+          <div id="portraitTask" class="portrait-task">Refactoring src/utils</div>
+          <div class="portrait-bars">
+            <div class="stat-bar">
+              <span class="stat-bar-label">HP</span>
+              <div class="stat-bar-track"><div id="hpBar" class="stat-bar-fill hp" style="width:80%"></div></div>
+              <span id="hpVal" class="stat-bar-val">4/5</span>
+            </div>
+            <div class="stat-bar">
+              <span class="stat-bar-label">Progress</span>
+              <div class="stat-bar-track"><div id="progressBar" class="stat-bar-fill progress" style="width:45%"></div></div>
+              <span id="progressVal" class="stat-bar-val">45%</span>
+            </div>
+          </div>
+          <div class="portrait-stats-row">
+            <div class="portrait-stat"><span class="stat-lbl">Time:</span><span id="portraitElapsed" class="stat-v">00:12</span></div>
+            <div class="portrait-stat"><span class="stat-lbl">Tokens:</span><span id="portraitTokens" class="stat-v">320</span></div>
+            <div class="portrait-stat"><span class="stat-lbl">Resources:</span><span id="portraitRes" class="stat-v">2</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Reward Metrics Panel (MicroRTS-inspired) -->
+      <div class="rewards-panel">
+        <div class="rewards-title">Reward Functions</div>
+        <div class="rewards-grid">
+          <div class="reward-item">
+            <div class="reward-name">WinLoss</div>
+            <div class="reward-bar-track"><div id="rwWinLoss" class="reward-bar" style="width:0%"></div></div>
+            <span class="reward-weight">x10.0</span>
+          </div>
+          <div class="reward-item">
+            <div class="reward-name">Resources</div>
+            <div class="reward-bar-track"><div id="rwResources" class="reward-bar res" style="width:30%"></div></div>
+            <span class="reward-weight">x1.0</span>
+          </div>
+          <div class="reward-item">
+            <div class="reward-name">Workers</div>
+            <div class="reward-bar-track"><div id="rwWorkers" class="reward-bar workers" style="width:50%"></div></div>
+            <span class="reward-weight">x1.0</span>
+          </div>
+          <div class="reward-item">
+            <div class="reward-name">Buildings</div>
+            <div class="reward-bar-track"><div id="rwBuildings" class="reward-bar buildings" style="width:20%"></div></div>
+            <span class="reward-weight">x0.2</span>
+          </div>
+          <div class="reward-item">
+            <div class="reward-name">Attack</div>
+            <div class="reward-bar-track"><div id="rwAttack" class="reward-bar attack" style="width:10%"></div></div>
+            <span class="reward-weight">x1.0</span>
+          </div>
+          <div class="reward-item">
+            <div class="reward-name">Combat</div>
+            <div class="reward-bar-track"><div id="rwCombat" class="reward-bar combat" style="width:15%"></div></div>
+            <span class="reward-weight">x4.0</span>
+          </div>
+        </div>
+        <div class="reward-total">
+          <span>Total Reward:</span>
+          <span id="rewardTotal" class="reward-total-val">0.00</span>
+        </div>
+      </div>
+
+      <!-- Ops Feed -->
+      <div id="opsPanel" class="ops-panel">
+        <div class="ops-header">
+          <span class="ops-title">Ops Feed</span>
+          <span id="opsStatus" class="tag tag-live">Live</span>
+        </div>
+        <div id="opsFeed" class="ops-feed"></div>
+        <div class="ops-stats">
+          <div class="ops-stat"><span class="ops-stat-label">Latency</span><span id="opsLatency" class="ops-stat-val">--</span></div>
+          <div class="ops-stat"><span class="ops-stat-label">Events</span><span id="opsEvents" class="ops-stat-val">0</span></div>
+          <div class="ops-stat"><span class="ops-stat-label">Errors</span><span id="opsErrors" class="ops-stat-val">0</span></div>
+        </div>
+      </div>
+
+      <!-- Command Grid - Enhanced with MicroRTS actions -->
+      <div class="command-panel">
+        <div class="command-grid" role="group" aria-label="Commands">
+          <button class="cmd-btn" data-cmd="move" title="Move (M)"><span class="cmd-icon cmd-move"></span><span class="cmd-label">Move</span><kbd>M</kbd></button>
+          <button class="cmd-btn" data-cmd="stop" title="Stop (S)"><span class="cmd-icon cmd-stop"></span><span class="cmd-label">Stop</span><kbd>S</kbd></button>
+          <button class="cmd-btn" data-cmd="hold" title="Hold (H)"><span class="cmd-icon cmd-hold"></span><span class="cmd-label">Hold</span><kbd>H</kbd></button>
+          <button class="cmd-btn" data-cmd="harvest" title="Harvest (V)"><span class="cmd-icon cmd-harvest"></span><span class="cmd-label">Harvest</span><kbd>V</kbd></button>
+          <button class="cmd-btn" data-cmd="resume" title="Resume (R)"><span class="cmd-icon cmd-resume"></span><span class="cmd-label">Resume</span><kbd>R</kbd></button>
+          <button class="cmd-btn" data-cmd="attack" title="Attack (A)"><span class="cmd-icon cmd-attack"></span><span class="cmd-label">Attack</span><kbd>A</kbd></button>
+          <button class="cmd-btn" data-cmd="produce" title="Produce (P)"><span class="cmd-icon cmd-produce"></span><span class="cmd-label">Produce</span><kbd>P</kbd></button>
+          <button class="cmd-btn" data-cmd="inspect" title="Inspect (I)"><span class="cmd-icon cmd-inspect"></span><span class="cmd-label">Inspect</span><kbd>I</kbd></button>
+          <button class="cmd-btn cmd-danger" data-cmd="terminate" title="Terminate (X)"><span class="cmd-icon cmd-terminate"></span><span class="cmd-label">Terminate</span><kbd>X</kbd></button>
+          <button class="cmd-btn" data-cmd="scan" title="Scan (Q)"><span class="cmd-icon cmd-scan"></span><span class="cmd-label">Scan</span><kbd>Q</kbd></button>
+          <button class="cmd-btn" data-cmd="return" title="Return (T)"><span class="cmd-icon cmd-return"></span><span class="cmd-label">Return</span><kbd>T</kbd></button>
+          <button class="cmd-btn" data-cmd="patrol" title="Patrol (L)"><span class="cmd-icon cmd-patrol"></span><span class="cmd-label">Patrol</span><kbd>L</kbd></button>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Tooltip -->
+  <div id="tooltip" class="tooltip" role="tooltip" aria-hidden="true">
+    <div class="tooltip-title"></div>
+    <div class="tooltip-desc"></div>
+    <div class="tooltip-stats"></div>
+  </div>
+
+  <script src="engine.js"></script>
+</body>
+</html>
